@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+
+  cassandra1:
+    image: cassandra:latest
+    container_name: cassandra1
+    hostname: cassandra1
+    networks:
+      - cassandra
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra-data-node-1:/var/lib/cassandra
+    environment: &environment
+      CASSANDRA_SEEDS: "cassandra1"
+      CASSANDRA_CLUSTER_NAME: HighArch_Dialogs
+      CASSANDRA_DC: DC1
+      CASSANDRA_RACK: RACK1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+      CASSANDRA_NUM_TOKENS: 256
+      MAX_HEAP_SIZE: "2G"
+      # Set the minimum heap size
+      HEAP_NEWSIZE: "100M"
+    healthcheck:
+      test: [ "CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' > /dev/null 2>&1" ]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+
+  cassandra2:
+    image: cassandra:latest
+    container_name: cassandra2
+    hostname: cassandra2
+    networks:
+      - cassandra
+    ports:
+      - "9043:9042"
+    volumes:
+      - cassandra-data-node-2:/var/lib/cassandra
+    environment: *environment
+    depends_on:
+      cassandra1:
+        condition: service_started
+
+  cassandra3:
+    image: cassandra:latest
+    container_name: cassandra3
+    hostname: cassandra3
+    networks:
+      - cassandra
+    ports:
+      - "9044:9042"
+    volumes:
+      - cassandra-data-node-3:/var/lib/cassandra
+    environment: *environment
+    depends_on:
+      cassandra1:
+        condition: service_started
+
+#  cassandra4:
+#    image: cassandra:latest
+#    container_name: cassandra4
+#    hostname: cassandra4
+#    networks:
+#      - cassandra
+#    ports:
+#      - "9045:9042"
+#    volumes:
+#      - cassandra-data-node-4:/var/lib/cassandra
+#    environment: *environment
+#    depends_on:
+#      cassandra1:
+#        condition: service_started
+
+  app:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    environment:
+      CAS_ADDRESS: "cassandra1"
+      CAS_KEYSPACE: "dialogs_space"
+      APP_PORT: "8081"
+    networks:
+      - cassandra
+    volumes:
+      - .:/app
+    ports:
+      - "8081:8081"
+    depends_on:
+      cassandra1:
+        condition: service_healthy
+
+volumes:
+  cassandra-data-node-1:
+  cassandra-data-node-2:
+  cassandra-data-node-3:
+  cassandra-data-node-4:
+
+networks:
+  cassandra:
+    driver: bridge
